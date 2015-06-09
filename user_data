@@ -1,0 +1,56 @@
+#cloud-config
+
+hostname: #coreos.hostname#
+
+coreos:
+  etcd:
+    # generate a new token for each unique cluster from https://discovery.etcd.io/new
+    discovery: #etcd.discovery.url#
+    # multi-region and multi-cloud deployments need to use $public_ipv4
+    addr: #etcd.addr#
+    peer-addr: #etcd.peer.addr#
+    heartbeat-interval: #etcd.heartbeat.interval#
+    election-timeout: #etcd.election.interval#
+  units:
+    - name: docker.service
+      command: restart
+      content: |
+        # /usr/lib64/systemd/system/docker.service
+          [Unit]
+          Description=Docker Application Container Engine
+          Documentation=http://docs.docker.io
+          After=docker.socket early-docker.target
+          Requires=docker.socket early-docker.target
+
+          [Service]
+          Environment=TMPDIR="/var/tmp/"
+          Environment=DOCKER_OPTS='--insecure-registry="#docker.registry.addr#"'
+          ExecStartPre=/bin/mount --make-rprivate /
+          EnvironmentFile=-/run/docker_opts.env
+          LimitNOFILE=1048576
+          LimitNPROC=1048576
+          # Run docker but don't have docker automatically restart
+          # containers. This is a job for systemd and unit files.
+          #ExecStart=/usr/bin/docker --daemon --storage-driver=btrfs --insecure-registry 129.69.214.136:5000 --host=fd:// $DOCKER_OPTS
+          ExecStart=/usr/bin/docker --daemon $DOCKER_OPTS
+
+          [Install]
+          WantedBy=multi-user.target
+    - name: etcd.service
+      command: start
+    - name: fleet.service
+      command: start
+    # This unit run the Monitor in the specified port of the machine
+    - name: monitor.service
+      command: start
+      content: |
+          [Unit]
+          Description=Monitor for CoreOS host
+          Requires=docker.service
+
+          [Service]
+          Restart=always
+          ExecStartPre=/bin/bash -c "/usr/bin/docker pull google/cadvisor:0.6.2"
+          ExecStart=/usr/bin/docker run -t --volume=/var/run:/var/run:rw --volume=/sys:/sys:ro --volume=/var/lib/docker/:/var/lib/docker:ro --publish=8080:8080 --name=monitor google/cadvisor:latest
+          ExecStop=/bin/bash -c "/usr/bin/docker stop monitor"
+          ExecStopPost=/bin/bash -c "/usr/bin/docker rm monitor" 

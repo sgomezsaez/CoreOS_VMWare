@@ -39,6 +39,6 @@ Logging into a CoreOS instance\n
 
 - Download the insecure_ssh_key from this folder
 
-- Execute ssh -i insecure_ssh_key core@<CoreOS_Instance_IP>
+- Execute ssh -i insecure_ssh_key core@\<CoreOS_Instance_IP\>
 
 
